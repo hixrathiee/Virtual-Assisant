@@ -3,7 +3,7 @@ import bg from "../assets/authBg.png"
 import axios from "axios"
 import { IoEye, IoEyeOff } from "react-icons/io5";
 import { useNavigate } from "react-router-dom"
-import { userDataContext } from '../context/userContext';
+import { userDataContext } from '../context/UserContext';
 function SignIn() {
     const [showPassword, setShowPassword] = useState(false)
     const { serverUrl, userData, setUserData } = useContext(userDataContext)
