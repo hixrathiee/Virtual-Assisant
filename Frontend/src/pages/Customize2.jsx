@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react'
-import { userDataContext } from '../context/userContext'
+import { userDataContext } from '../context/UserContext'
 import { IoMdArrowRoundBack } from "react-icons/io";
 
 import axios from 'axios'
