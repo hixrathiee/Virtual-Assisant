@@ -6,19 +6,25 @@ import aiImg from "../assets/ai.gif"
 import userImg from "../assets/user.gif"
 import { CgMenuRight } from "react-icons/cg";
 import { RxCross2 } from "react-icons/rx";
+
 function Home() {
+
   const { userData, serverUrl, setUserData, getGeminiResponse } = useContext(userDataContext)
   const navigate = useNavigate()
+
   const recognitionRef = useRef(null)
   const isRecognitionActiveRef = useRef(false)
   const isSpeakingRef = useRef(false)
+  const lastRequestTimeRef = useRef(0)   // cooldown ref
+
   const [listening, setListening] = useState(false)
   const [userText, setUserText] = useState("")
   const [aiText, setAiText] = useState("")
   const [ham, setHam] = useState(false)
+
   const synth = window.speechSynthesis
 
-  // LOGOUT
+  //  LOGOUT 
   const handleLogOut = async () => {
     try {
       await axios.get(`${serverUrl}/api/auth/logout`, { withCredentials: true })
@@ -35,7 +41,6 @@ function Home() {
     if (!isSpeakingRef.current && !isRecognitionActiveRef.current) {
       try {
         recognitionRef.current?.start()
-        console.log("recognition started")
       } catch (error) {
         if (error.name !== "InvalidStateError") {
           console.log(error)
@@ -44,23 +49,24 @@ function Home() {
     }
   }
 
-  //  SPEAK FUNCTION 
+  //  SPEAK 
   const speak = (text) => {
     if (!text) return
+
     const utterance = new SpeechSynthesisUtterance(text)
     isSpeakingRef.current = true
+
     utterance.onend = () => {
       isSpeakingRef.current = false
       setAiText("")
-      setTimeout(() => {
-        startRecognition()
-      }, 700)
+      setTimeout(() => startRecognition(), 700)
     }
+
     synth.cancel()
     synth.speak(utterance)
   }
 
-  // HANDLE COMMAND 
+  //  HANDLE COMMAND 
   const handleCommand = (data) => {
     if (!data || !data.type) {
       speak("Sorry, something went wrong.")
@@ -102,7 +108,7 @@ function Home() {
     }
   }
 
-  // SPEECH RECOGNITION 
+  //  SPEECH RECOGNITION 
   useEffect(() => {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -129,10 +135,8 @@ function Home() {
     }
 
     recognition.onerror = (event) => {
-      console.warn("Recognition error:", event.error)
       setListening(false)
       isRecognitionActiveRef.current = false
-
       if (event.error !== "aborted" && !isSpeakingRef.current) {
         setTimeout(() => startRecognition(), 1000)
       }
@@ -142,29 +146,98 @@ function Home() {
       const transcript = e.results[e.results.length - 1][0].transcript.trim()
       console.log("Heard:", transcript)
 
-      if (
-        transcript.toLowerCase().includes(userData?.assistantName?.toLowerCase())
-      ) {
-        recognition.stop()
-        setUserText(transcript)
-        setAiText("")
-
-        const data = await getGeminiResponse(transcript)
-
-        if (!data) {
-          speak("Sorry, I couldn't understand that.")
-          return
-        }
-
-        handleCommand(data)
-        setAiText(data.response)
-        setUserText("")
+      if (!transcript.toLowerCase().includes(userData?.assistantName?.toLowerCase())) {
+        return
       }
+
+      recognition.stop()
+      setUserText(transcript)
+      setAiText("")
+
+      const lower = transcript.toLowerCase()
+
+      //  LOCAL INTENT DETECTION 
+
+      if (lower.includes("time")) {
+        handleCommand({
+          type: "get_time",
+          userInput: transcript,
+          response: "Checking the current time."
+        })
+        return
+      }
+
+      if (lower.includes("date")) {
+        handleCommand({
+          type: "get_date",
+          userInput: transcript,
+          response: "Checking today's date."
+        })
+        return
+      }
+
+      if (lower.includes("open youtube")) {
+        handleCommand({
+          type: "youtube_search",
+          userInput: "",
+          response: "Opening YouTube."
+        })
+        return
+      }
+
+      if (lower.includes("open calculator")) {
+        handleCommand({
+          type: "calculator_open",
+          userInput: "",
+          response: "Opening calculator."
+        })
+        return
+      }
+
+      if (lower.includes("open instagram")) {
+        handleCommand({
+          type: "instagram_open",
+          userInput: "",
+          response: "Opening Instagram."
+        })
+        return
+      }
+
+      if (lower.includes("open facebook")) {
+        handleCommand({
+          type: "facebook_open",
+          userInput: "",
+          response: "Opening Facebook."
+        })
+        return
+      }
+
+      // COOLDOWN 
+
+      const now = Date.now()
+      if (now - lastRequestTimeRef.current < 4000) {
+        console.log("Skipping Gemini request (cooldown)")
+        return
+      }
+
+      lastRequestTimeRef.current = now
+
+      //  GEMINI CALL
+
+      const data = await getGeminiResponse(transcript)
+
+      if (!data) {
+        speak("Sorry, I couldn't understand that.")
+        return
+      }
+
+      handleCommand(data)
+      setAiText(data.response)
+      setUserText("")
     }
 
     recognition.start()
 
-    // Greeting
     if (userData?.name) {
       const greeting = new SpeechSynthesisUtterance(
         `Hello ${userData.name}, how can I help you today?`
