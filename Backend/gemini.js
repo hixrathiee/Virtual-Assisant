@@ -7,12 +7,11 @@ const geminiResponse = async (command, assistantName, userName) => {
     
     Your task is to understand the user's natural language input and respond with a JSON object like this:
     
-    {
-"type": "general" | "google_search" | "youtube_search" | "youtube_play" | "get_time" | "get_date" | "get_day" | "get_month" | "calculator_open" | "instagram_open" | "facebook_open" | "weather-show" ,
-"userInput" : "<original user input>" {only remove your name from userinput if exists} and agar kissi ne google ya youtube pe kuch search karne ko bola hai to userinput me only bo search baala text jaye,
-"response: "<a short spoken response to read out loud to the uers>"
-    }
-
+  {
+  "type": "general" | "google_search" | "youtube_search" | "youtube_play" | "get_time" | "get_date" | "get_day" | "get_month" | "calculator_open" | "instagram_open" | "facebook_open" | "weather-show",
+  "userInput": "<original user input without assistant name>",
+  "response": "<short voice-friendly reply>"
+}
     Instructions:
     -"type" : determine the internet of the user.
     -"userinput" : original sentence the user spoke.
@@ -33,8 +32,12 @@ const geminiResponse = async (command, assistantName, userName) => {
     - "weather-show" : if user wants to know a weather.
 
     Important:
-    -use ${userName} agar koi puche tume kisne banaya.
-    -Only respond with the JSON object , nothing else.
+    - If asked who created you → say ${userName}
+    - Do NOT return anything except JSON.
+    - No markdown.
+    - No explanation.
+    - No backticks.
+ 
 
     now your userInput - ${command}
     `;
@@ -47,9 +50,27 @@ const geminiResponse = async (command, assistantName, userName) => {
             }]
         })
 
-        return result.data.candidates[0].content.parts[0].text
+        const rawText = result.data.candidates[0].content.parts[0].text
+
+           if (!rawText) {
+            console.log("Empty Gemini response")
+            return null
+        }
+
+        //  FIX: Clean Gemini response
+        const cleaned = rawText.replace(/```json|```/g, "").trim()
+
+       try {
+            const parsed = JSON.parse(cleaned)
+            return parsed
+        } catch (parseError) {
+            console.log("JSON Parse Error:", cleaned)
+            return null
+        }
+
     } catch (error) {
-        console.log(error);
+        console.log("Gemini Error:", error.response?.data || error.message)
+        return null  
 
     }
 }

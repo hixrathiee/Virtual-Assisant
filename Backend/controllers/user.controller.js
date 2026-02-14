@@ -1,7 +1,7 @@
 import uploadOnCloudinary from "../config/cloudinary.js"
 import geminiResponse from "../gemini.js"
 import User from "../models/user.model.js"
-import moment from "moment"
+
 export const getCurrentUser = async (req, res) => {
     try {
         const userId = req.userId
@@ -37,48 +37,88 @@ export const updateAssistant = async (req, res) => {
 export const askToAssistant = async (req, res) => {
     try {
         const { command } = req.body
+
+        if (!command) {
+            return res.status(400).json({ response: "Command is required." })
+        }
+
         const user = await User.findById(req.userId)
+        if (!user) {
+            return res.status(404).json({ response: "User not found." })
+        }
+
         user.history.push(command)
-        user.save()
+        await user.save()
+
         const userName = user.name
         const assistantName = user.assistantName
         const result = await geminiResponse(command, assistantName, userName)
 
-        const jsonMatch = result.match(/{[\s\S]*}/)
-        if (!jsonMatch) {
-            return res.status(400).json({ response: "sorry I can't understand" })
+        // FIX - If Gemini failed
+        if (!result) {
+            return res.json({
+                type: "general",
+                userInput: command,
+                response: "Sorry, I didn't understand that."
+            })
         }
-        const gemResult = JSON.parse(jsonMatch[0])
-        const type = gemResult.type
+
+        const { type, userInput, response } = result
+
+        // FIX -  Handle Date/Time in IST (not UTC)
+        const currentDate = new Date().toLocaleDateString("en-IN", {
+            timeZone: "Asia/Kolkata"
+        })
+
+        const currentTime = new Date().toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+        })
+
+        const currentDay = new Date().toLocaleDateString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            weekday: "long"
+        })
+
+        const currentMonth = new Date().toLocaleDateString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            month: "long"
+        })
 
         switch (type) {
             case "get_date":
                 return res.json({
                     type,
-                    userInput: gemResult.userInput,
-                    response: `current date is ${moment().format("YYYY-MM-DD")}`
-                });
+                    userInput,
+                    response: `Current date is ${currentDate}`
+                })
+
             case "get_time":
                 return res.json({
                     type,
-                    userInput: gemResult.userInput,
-                    response: `current time is ${moment().format("hh:mm A")}`
-                });
+                    userInput,
+                    response: `Current time is ${currentTime}`
+                })
+
             case "get_day":
                 return res.json({
                     type,
-                    userInput: gemResult.userInput,
-                    response: `today day is ${moment().format("dddd")}`
-                });
+                    userInput,
+                    response: `Today is ${currentDay}`
+                })
+
             case "get_month":
                 return res.json({
                     type,
-                    userInput: gemResult.userInput,
-                    response: `today month is ${moment().format("MMMM")}`
-                });
+                    userInput,
+                    response: `Current month is ${currentMonth}`
+                })
+
             case "google_search":
             case "youtube_search":
-            case "google_play":
+            case "youtube_play":
             case "general":
             case "calculator_open":
             case "instagram_open":
@@ -86,18 +126,19 @@ export const askToAssistant = async (req, res) => {
             case "weather-show":
                 return res.json({
                     type,
-                    userInput: gemResult.userInput,
-                    response: gemResult.response,
-                });
+                    userInput,
+                    response
+                })
             default:
                 return res.status(400).json({
                     response: "I didn't understand that command."
                 })
         }
-        
+
     } catch (error) {
-        return res.status(400).json({
-            response: "ask assistant error."
+        console.log("Ask Assistant Error:", error)
+        return res.status(500).json({
+            response: "Something went wrong."
         })
     }
 }
