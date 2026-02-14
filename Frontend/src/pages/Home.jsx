@@ -272,7 +272,7 @@ function Home() {
         onClick={() => setHam(true)}
       />
 
-      <div className={`absolute lg:hidden top-0 w-full h-full bg-[#0000003a] backdrop-blur-lg p-[20px] flex flex-col gap-[20px] items-start ${ham ? "translate-x-0" : "translate-x-full"} transition-transform`}>
+     <div className={`fixed inset-0 lg:hidden bg-[#0000003a] backdrop-blur-lg p-[20px] flex flex-col gap-[20px] items-start transform transition-transform duration-300 ${ham ? "translate-x-0" : "translate-x-full"}`}>
         <RxCross2
           className='absolute text-white top-[20px] right-[20px] w-[25px] h-[25px]'
           onClick={() => setHam(false)}
