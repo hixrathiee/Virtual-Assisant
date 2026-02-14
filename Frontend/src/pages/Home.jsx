@@ -15,7 +15,7 @@ function Home() {
   const recognitionRef = useRef(null)
   const isRecognitionActiveRef = useRef(false)
   const isSpeakingRef = useRef(false)
-  const lastRequestTimeRef = useRef(0)   // cooldown ref
+  const lastRequestTimeRef = useRef(0)
 
   const [listening, setListening] = useState(false)
   const [userText, setUserText] = useState("")
@@ -24,7 +24,7 @@ function Home() {
 
   const synth = window.speechSynthesis
 
-  //  LOGOUT 
+  // ---------------- LOGOUT ----------------
   const handleLogOut = async () => {
     try {
       await axios.get(`${serverUrl}/api/auth/logout`, { withCredentials: true })
@@ -36,7 +36,7 @@ function Home() {
     }
   }
 
-  //  START RECOGNITION 
+  // ---------------- START RECOGNITION ----------------
   const startRecognition = () => {
     if (!isSpeakingRef.current && !isRecognitionActiveRef.current) {
       try {
@@ -49,10 +49,9 @@ function Home() {
     }
   }
 
-  //  SPEAK 
+  // ---------------- SPEAK ----------------
   const speak = (text) => {
     if (!text) return
-
     const utterance = new SpeechSynthesisUtterance(text)
     isSpeakingRef.current = true
 
@@ -66,7 +65,7 @@ function Home() {
     synth.speak(utterance)
   }
 
-  //  HANDLE COMMAND 
+  // ---------------- HANDLE COMMAND ----------------
   const handleCommand = (data) => {
     if (!data || !data.type) {
       speak("Sorry, something went wrong.")
@@ -75,40 +74,65 @@ function Home() {
 
     const { type, userInput, response } = data
 
-    speak(response)
-
     switch (type) {
-      case "google_search":
-        window.open(`https://www.google.com/search?q=${encodeURIComponent(userInput)}`, "_blank")
+
+      case "get_time": {
+        const currentTime = new Date().toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        })
+        speak(`Current time is ${currentTime}`)
+        break
+      }
+
+      case "get_date": {
+        const currentDate = new Date().toLocaleDateString("en-IN", {
+          timeZone: "Asia/Kolkata"
+        })
+        speak(`Today's date is ${currentDate}`)
+        break
+      }
+
+      case "weather-show":
+        speak("Showing weather.")
+        window.open(`https://www.google.com/search?q=weather+today`, "_blank")
         break
 
       case "youtube_search":
       case "youtube_play":
-        window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(userInput)}`, "_blank")
+        speak("Opening YouTube.")
+        window.open(`https://www.youtube.com`, "_blank")
+        break
+
+      case "google_search":
+        speak(response)
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(userInput)}`, "_blank")
         break
 
       case "calculator_open":
+        speak("Opening calculator.")
         window.open(`https://www.google.com/search?q=calculator`, "_blank")
         break
 
       case "instagram_open":
+        speak("Opening Instagram.")
         window.open(`https://www.instagram.com/`, "_blank")
         break
 
       case "facebook_open":
+        speak("Opening Facebook.")
         window.open(`https://www.facebook.com/`, "_blank")
         break
 
-      case "weather-show":
-        window.open(`https://www.google.com/search?q=weather`, "_blank")
-        break
-
       default:
+        speak(response)
         break
     }
   }
 
-  //  SPEECH RECOGNITION 
+  // ---------------- SPEECH RECOGNITION ----------------
   useEffect(() => {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -134,10 +158,10 @@ function Home() {
       }
     }
 
-    recognition.onerror = (event) => {
+    recognition.onerror = () => {
       setListening(false)
       isRecognitionActiveRef.current = false
-      if (event.error !== "aborted" && !isSpeakingRef.current) {
+      if (!isSpeakingRef.current) {
         setTimeout(() => startRecognition(), 1000)
       }
     }
@@ -156,73 +180,50 @@ function Home() {
 
       const lower = transcript.toLowerCase()
 
-      //  LOCAL INTENT DETECTION 
+      // -------- LOCAL COMMANDS --------
 
       if (lower.includes("time")) {
-        handleCommand({
-          type: "get_time",
-          userInput: transcript,
-          response: "Checking the current time."
-        })
+        handleCommand({ type: "get_time" })
         return
       }
 
       if (lower.includes("date")) {
-        handleCommand({
-          type: "get_date",
-          userInput: transcript,
-          response: "Checking today's date."
-        })
+        handleCommand({ type: "get_date" })
         return
       }
 
-      if (lower.includes("open youtube")) {
-        handleCommand({
-          type: "youtube_search",
-          userInput: "",
-          response: "Opening YouTube."
-        })
+      if (lower.includes("weather")) {
+        handleCommand({ type: "weather-show" })
         return
       }
 
-      if (lower.includes("open calculator")) {
-        handleCommand({
-          type: "calculator_open",
-          userInput: "",
-          response: "Opening calculator."
-        })
+      if (lower.includes("youtube")) {
+        handleCommand({ type: "youtube_search" })
         return
       }
 
-      if (lower.includes("open instagram")) {
-        handleCommand({
-          type: "instagram_open",
-          userInput: "",
-          response: "Opening Instagram."
-        })
+      if (lower.includes("calculator")) {
+        handleCommand({ type: "calculator_open" })
         return
       }
 
-      if (lower.includes("open facebook")) {
-        handleCommand({
-          type: "facebook_open",
-          userInput: "",
-          response: "Opening Facebook."
-        })
+      if (lower.includes("instagram")) {
+        handleCommand({ type: "instagram_open" })
         return
       }
 
-      // COOLDOWN 
+      if (lower.includes("facebook")) {
+        handleCommand({ type: "facebook_open" })
+        return
+      }
+
+      // -------- COOLDOWN --------
 
       const now = Date.now()
-      if (now - lastRequestTimeRef.current < 4000) {
-        console.log("Skipping Gemini request (cooldown)")
-        return
-      }
-
+      if (now - lastRequestTimeRef.current < 4000) return
       lastRequestTimeRef.current = now
 
-      //  GEMINI CALL
+      // -------- GEMINI --------
 
       const data = await getGeminiResponse(transcript)
 
@@ -232,23 +233,17 @@ function Home() {
       }
 
       handleCommand(data)
-      setAiText(data.response)
-      setUserText("")
     }
 
     recognition.start()
 
     if (userData?.name) {
-      const greeting = new SpeechSynthesisUtterance(
-        `Hello ${userData.name}, how can I help you today?`
-      )
-      synth.speak(greeting)
+      speak(`Hello ${userData.name}, how can I help you today?`)
     }
 
     return () => {
       synth.cancel()
       recognition.stop()
-      isRecognitionActiveRef.current = false
     }
 
   }, [])
@@ -256,6 +251,22 @@ function Home() {
   return (
     <div className='w-full h-[100vh] bg-gradient-to-t from-black to-[#02023d] flex justify-center items-center flex-col gap-[15px] overflow-hidden'>
 
+      {/* Desktop Buttons */}
+      <button
+        className='hidden lg:block absolute top-[20px] right-[20px] bg-white px-6 py-3 rounded-full font-semibold'
+        onClick={handleLogOut}
+      >
+        Log Out
+      </button>
+
+      <button
+        className='hidden lg:block absolute top-[90px] right-[20px] bg-white px-6 py-3 rounded-full font-semibold'
+        onClick={() => navigate("/customize")}
+      >
+        Customize Assistant
+      </button>
+
+      {/* Mobile Hamburger */}
       <CgMenuRight
         className='absolute lg:hidden text-white top-[20px] right-[20px] w-[25px] h-[25px]'
         onClick={() => setHam(true)}
@@ -268,17 +279,17 @@ function Home() {
         />
 
         <button
-          className='min-w-[150px] h-[60px] bg-white rounded-full text-black font-semibold text-[19px]'
+          className='min-w-[150px] h-[60px] bg-white rounded-full font-semibold'
           onClick={handleLogOut}
         >
           Log Out
         </button>
 
         <button
-          className='min-w-[150px] h-[60px] bg-white rounded-full text-black font-semibold text-[19px]'
+          className='min-w-[150px] h-[60px] bg-white rounded-full font-semibold'
           onClick={() => navigate("/customize")}
         >
-          Customize your Assistant
+          Customize Assistant
         </button>
       </div>
 
